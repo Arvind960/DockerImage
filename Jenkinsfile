@@ -1,42 +1,32 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = 'nginx-custom'
-        CONTAINER_NAME = 'test-nginx'
-        PORT = '8081'
-    }
-
     stages {
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME .'
+                script {
+                    // Build the Docker image
+                    sh 'docker build -t nginx-custom .'
+                }
             }
         }
 
-        stage('Test Container') {
+        stage('Run and Test Container') {
             steps {
                 script {
-                    // Remove old container if it exists
-                    sh 'docker rm -f $CONTAINER_NAME || true'
+                    // Run container in detached mode (keep running)
+                    sh 'docker run -d --name test-nginx -p 8081:80 nginx-custom'
 
-                    // Run new container
-                    sh 'docker run -d --name $CONTAINER_NAME -p $PORT:80 $IMAGE_NAME'
-
-                    // Give it time to start
+                    // Wait for container to start
                     sh 'sleep 5'
 
-                    // Test using curl
-                    def status = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT", returnStdout: true).trim()
-                    echo "HTTP Status Code: ${status}"
+                    // Test HTTP status code
+                    def statusCode = sh(script: 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8081', returnStdout: true).trim()
+                    echo "HTTP Status Code: ${statusCode}"
 
-                    // Check response code
-                    if (status != '200') {
-                        error("App did not return 200 OK. Got: ${status}")
+                    if (statusCode != '200') {
+                        error("Container test failed with status code ${statusCode}")
                     }
-
-                    // Clean up
-                    sh 'docker rm -f $CONTAINER_NAME'
                 }
             }
         }
@@ -44,10 +34,8 @@ pipeline {
 
     post {
         failure {
-            echo '❌ Docker image build or test failed!'
-        }
-        success {
-            echo '✅ Docker image built and tested successfully!'
+            // Optional: cleanup on failure if you want
+            sh 'docker rm -f test-nginx || true'
         }
     }
 }
