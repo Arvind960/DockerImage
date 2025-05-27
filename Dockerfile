@@ -15,8 +15,8 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN mkdir -p /usr/share/nginx/html
 COPY index.html /usr/share/nginx/html/
 
-# Expose port 8081
-EXPOSE 8081
+# Expose port 80 (default Nginx port)
+EXPOSE 80
 
 # Command to run when container starts
 CMD ["nginx", "-g", "daemon off;"]
