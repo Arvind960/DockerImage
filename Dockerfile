@@ -1,21 +1,22 @@
-FROM ubuntu:20.04
+FROM nginx:latest
 
 # Update package lists and install basic utilities
 RUN apt-get update && \
     apt-get install -y \
     curl \
     wget \
-    git \
-    vim \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Create a non-root user
-RUN useradd -m dockeruser
-USER dockeruser
+# Create a simple HTML page
+RUN mkdir -p /usr/share/nginx/html
+COPY index.html /usr/share/nginx/html/
+
+# Expose port 8081
+EXPOSE 8081
 
 # Command to run when container starts
-CMD ["bash"]
+CMD ["nginx", "-g", "daemon off;"]
