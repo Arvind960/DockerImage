@@ -18,6 +18,10 @@ pipeline {
         stage('Run and Test Container') {
             steps {
                 script {
+                    echo "🛑 Removing existing container if it exists..."
+                    // Ensure the old container is stopped and removed
+                    sh 'docker rm -f test-nginx || true'
+
                     echo "🚀 Running Container for Testing..."
                     sh 'docker run -d --name test-nginx -p 8081:80 nginx-custom'
                     sh 'sleep 5'
@@ -37,12 +41,12 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     script {
                         echo "📦 Tagging and Pushing Docker Image to DockerHub..."
-                        sh '''
+                        sh """
                             docker tag nginx-custom $IMAGE_NAME
                             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                             docker push $IMAGE_NAME
                             docker logout
-                        '''
+                        """
                     }
                 }
             }
