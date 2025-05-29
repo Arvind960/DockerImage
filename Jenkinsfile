@@ -2,29 +2,37 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'asjsr/nginx-custom:latest'
+        IMAGE_BASE = 'asjsr/nginx-custom'
     }
 
     stages {
+        stage('Read Version') {
+            steps {
+                script {
+                    VERSION = readFile('VERSION').trim()
+                    IMAGE_TAG = "${IMAGE_BASE}:${VERSION}"
+                    env.IMAGE_TAG = IMAGE_TAG // Export for next stages
+                    echo "📦 Using image tag: ${IMAGE_TAG}"
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                echo "🔧 Building Docker Image..."
-                sh 'docker build -t nginx-custom .'
+                script {
+                    docker.build(env.IMAGE_TAG)
+                }
             }
         }
 
         stage('Run and Test Container') {
             steps {
-                echo "🛑 Removing existing container if it exists..."
                 sh 'docker rm -f test-nginx || true'
-
-                echo "🚀 Running container for testing..."
-                sh 'docker run -d --name test-nginx -p 8081:80 nginx-custom'
+                sh "docker run -d --name test-nginx -p 8081:80 ${env.IMAGE_TAG}"
                 sh 'sleep 5'
 
                 script {
                     def statusCode = sh(script: 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8081', returnStdout: true).trim()
-                    echo "✅ HTTP Status Code: ${statusCode}"
                     if (statusCode != '200') {
                         error("❌ Container test failed with status code ${statusCode}")
                     }
@@ -32,14 +40,12 @@ pipeline {
             }
         }
 
-        stage('Tag and Push to DockerHub') {
+        stage('Push to DockerHub') {
             steps {
                 script {
+                    def image = docker.image(env.IMAGE_TAG)
                     docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
-                        sh """
-                            docker tag nginx-custom $IMAGE_NAME
-                            docker push $IMAGE_NAME
-                        """
+                        image.push()
                     }
                 }
             }
@@ -48,14 +54,13 @@ pipeline {
 
     post {
         always {
-            echo "🧹 Cleaning up..."
             sh 'docker rm -f test-nginx || true'
         }
         success {
-            echo "🎉 Build and Push completed successfully!"
+            echo "✅ Image pushed: ${env.IMAGE_TAG}"
         }
         failure {
-            echo "⚠️ Build failed. Cleanup done."
+            echo "⚠️ Build failed."
         }
     }
 }
